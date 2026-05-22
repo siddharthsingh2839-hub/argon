@@ -1,18 +1,20 @@
-package dev.lvstrng.argon.module.modules.combat;
+package dlindustries.vigillant.system.module.modules.sword;
 
-import dev.lvstrng.argon.event.events.HudListener;
-import dev.lvstrng.argon.event.events.MouseMoveListener;
-import dev.lvstrng.argon.module.Category;
-import dev.lvstrng.argon.module.Module;
-import dev.lvstrng.argon.module.setting.BooleanSetting;
-import dev.lvstrng.argon.module.setting.MinMaxSetting;
-import dev.lvstrng.argon.module.setting.ModeSetting;
-import dev.lvstrng.argon.module.setting.NumberSetting;
-import dev.lvstrng.argon.utils.*;
-import dev.lvstrng.argon.utils.rotation.Rotation;
+import dlindustries.vigillant.system.event.events.HudListener;
+import dlindustries.vigillant.system.event.events.MouseMoveListener;
+import dlindustries.vigillant.system.module.Category;
+import dlindustries.vigillant.system.module.Module;
+import dlindustries.vigillant.system.module.setting.BooleanSetting;
+import dlindustries.vigillant.system.module.setting.MinMaxSetting;
+import dlindustries.vigillant.system.module.setting.ModeSetting;
+import dlindustries.vigillant.system.module.setting.NumberSetting;
+import dlindustries.vigillant.system.utils.*;
+import dlindustries.vigillant.system.utils.rotation.Rotation;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.AxeItem;
+import net.minecraft.item.Item;
+import net.minecraft.item.MaceItem;
 import net.minecraft.item.SwordItem;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.math.MathHelper;
@@ -20,10 +22,34 @@ import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
 
 public final class AimAssist extends Module implements HudListener, MouseMoveListener {
+
+	public enum WeaponMode {
+		MACE_ONLY("Mace Only"),
+		WEAPONS_ONLY("Weapons Only"),
+		MACE_AND_WEAPONS("Mace and Weapons"),
+		ALL("All Items");
+
+		private final String name;
+
+		WeaponMode(String name) {
+			this.name = name;
+		}
+
+		@Override
+		public String toString() {
+			return name;
+		}
+	}
+
 	private final BooleanSetting stickyAim = new BooleanSetting(EncryptedString.of("Sticky Aim"), false)
 			.setDescription(EncryptedString.of("Aims at the last attacked player"));
 
-	private final BooleanSetting onlyWeapon = new BooleanSetting(EncryptedString.of("Only Weapon"), true);
+
+	private final ModeSetting<WeaponMode> weaponMode = new ModeSetting<>(
+			EncryptedString.of("Filter"),
+			WeaponMode.WEAPONS_ONLY,
+			WeaponMode.class
+	).setDescription(EncryptedString.of("Which items trigger aim assist"));
 
 	private final BooleanSetting onLeftClick = new BooleanSetting(EncryptedString.of("On Left Click"), false)
 			.setDescription(EncryptedString.of("Only gets triggered if holding down left click"));
@@ -40,7 +66,7 @@ public final class AimAssist extends Module implements HudListener, MouseMoveLis
 	private final BooleanSetting seeOnly = new BooleanSetting(EncryptedString.of("See Only"), true);
 	private final BooleanSetting lookAtNearest = new BooleanSetting(EncryptedString.of("Look at Nearest"), false);
 
-	private final NumberSetting fov = new NumberSetting(EncryptedString.of("FOV"), 5, 360, 180, 1);
+	private final NumberSetting fov = new NumberSetting(EncryptedString.of("FOV"), 5, 360, 100, 1);
 
 	private final MinMaxSetting pitchSpeed = new MinMaxSetting(EncryptedString.of("Vertical Speed"), 0, 10, 0.1, 2, 4);
 	private final MinMaxSetting yawSpeed = new MinMaxSetting(EncryptedString.of("Horizontal Speed"), 0, 10, 0.1, 2, 4);
@@ -84,9 +110,12 @@ public final class AimAssist extends Module implements HudListener, MouseMoveLis
 		super(EncryptedString.of("Aim Assist"),
 				EncryptedString.of("Automatically aims at players for you"),
 				-1,
-				Category.COMBAT);
+				Category.sword);
 
-		addSettings(stickyAim, onlyWeapon, onLeftClick, aimAt, stopAtTargetVertical, stopAtTargetHorizontal, radius, seeOnly, lookAtNearest, fov, pitchSpeed, yawSpeed, speedChange, randomization, yawAssist, pitchAssist, waitFor, lerp, posMode);
+
+		addSettings(stickyAim, weaponMode, onLeftClick, aimAt, stopAtTargetVertical, stopAtTargetHorizontal,
+				radius, seeOnly, lookAtNearest, fov, pitchSpeed, yawSpeed, speedChange,
+				randomization, yawAssist, pitchAssist, waitFor, lerp, posMode);
 	}
 
 	@Override
@@ -119,8 +148,25 @@ public final class AimAssist extends Module implements HudListener, MouseMoveLis
 		if (mc.player == null || mc.currentScreen != null)
 			return;
 
-		if (onlyWeapon.getValue() && !(mc.player.getMainHandStack().getItem() instanceof SwordItem || mc.player.getMainHandStack().getItem() instanceof AxeItem))
-			return;
+		Item heldItem = mc.player.getMainHandStack().getItem();
+		switch (weaponMode.getMode()) {
+			case MACE_ONLY:
+				if (!(heldItem instanceof MaceItem)) return;
+				break;
+
+			case WEAPONS_ONLY:
+				if (!(heldItem instanceof SwordItem || heldItem instanceof AxeItem))
+					return;
+				break;
+
+			case MACE_AND_WEAPONS:
+				if (!(heldItem instanceof SwordItem || heldItem instanceof AxeItem || heldItem instanceof MaceItem))
+					return;
+				break;
+
+			case ALL:
+				break;
+		}
 
 		if (onLeftClick.getValue() && GLFW.glfwGetMouseButton(mc.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) != GLFW.GLFW_PRESS)
 			return;
